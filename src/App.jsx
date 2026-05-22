@@ -4,12 +4,14 @@ import Sidebar from './components/Sidebar';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import CategoriesPage from './pages/CategoriesPage';
+import ContentCategoriesPage from './pages/ContentCategoriesPage';
 import DesignsPage from './pages/DesignsPage';
 
 /* ── Page titles ────────────────────────────────────────────────────── */
 const PAGE_TITLES = {
   dashboard: 'Dashboard',
-  categories: 'Categories',
+  categories: 'Design Categories',
+  'content-categories': 'Content Categories',
   designs: 'Designs',
 };
 
@@ -19,6 +21,7 @@ const Layout = ({ page, setPage, userEmail, onLogout }) => {
     switch (page) {
       case 'dashboard':  return <DashboardPage userEmail={userEmail} />;
       case 'categories': return <CategoriesPage />;
+      case 'content-categories': return <ContentCategoriesPage />;
       case 'designs':    return <DesignsPage />;
       default:           return <DashboardPage userEmail={userEmail} />;
     }

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { api, uploadImage } from '../api';
 import { useToast } from '../components/ToastProvider';
 import BASE from '../api';
+import Dropzone from '../components/Dropzone';
 
 /* ── Default form ─────────────────────────────────────────────────────── */
 const defaultForm = () => ({
@@ -14,7 +15,7 @@ const defaultForm = () => ({
   image_url: '',
 });
 
-import Dropzone from '../components/Dropzone';
+
 /* ── Design Modal ─────────────────────────────────────────────────────── */
 const DesignModal = ({ design, categories, onClose, onSave }) => {
   const [form, setForm] = useState(design ? { ...design, tags: Array.isArray(design.tags) ? design.tags.join(', ') : design.tags || '' } : defaultForm());

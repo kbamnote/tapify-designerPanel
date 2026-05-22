@@ -3,8 +3,9 @@ import React from 'react';
 const Sidebar = ({ currentPage, setPage, userEmail, onLogout }) => {
   const nav = [
     { id: 'dashboard', icon: '📊', label: 'Dashboard' },
-    { id: 'categories', icon: '🗂️', label: 'Categories' },
-    { id: 'designs', icon: '🎨', label: 'Designs' },
+    { id: 'categories', icon: '🎨', label: 'Design Categories' },
+    { id: 'content-categories', icon: '🗂️', label: 'Content Categories' },
+    { id: 'designs', icon: '🖼️', label: 'Designs' },
   ];
 
   const initial = userEmail ? userEmail[0].toUpperCase() : 'D';
