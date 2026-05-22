@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '../api';
 import { useToast } from '../components/ToastProvider';
+import Dropzone from '../components/Dropzone';
+import BASE from '../api';
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
 const slugify = (str) =>
@@ -14,6 +16,7 @@ const defaultForm = () => ({
   text_color: '#ffffff',
   sort_order: 0,
   is_active: true,
+  image_url: '',
 });
 
 /* ── Color Input ─────────────────────────────────────────────────────── */
@@ -66,6 +69,7 @@ const CategoryModal = ({ category, onClose, onSave }) => {
           ...form,
           sort_order: Number(form.sort_order) || 0,
           is_active: form.is_active ? 1 : 0,
+          image_url: form.image_url || '',
         }),
       });
       toast.success(category ? 'Category updated!' : 'Category created!');
@@ -87,6 +91,14 @@ const CategoryModal = ({ category, onClose, onSave }) => {
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
+            <div className="form-group">
+              <label className="form-label">Category Image (Square)</label>
+              <Dropzone
+                imageUrl={form.image_url}
+                onUpload={url => set('image_url', url)}
+                onRemove={() => set('image_url', '')}
+              />
+            </div>
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label" htmlFor="cat-name">Name *</label>
@@ -225,7 +237,7 @@ const CategoriesPage = () => {
           <table>
             <thead>
               <tr>
-                <th>Icon</th>
+                <th>Image/Icon</th>
                 <th>Name</th>
                 <th>Slug</th>
                 <th>Colors</th>
@@ -237,7 +249,13 @@ const CategoriesPage = () => {
             <tbody>
               {categories.map(cat => (
                 <tr key={cat.id}>
-                  <td style={{ fontSize: 22 }}>{cat.icon}</td>
+                  <td>
+                    {cat.image_url ? (
+                      <img src={cat.image_url.startsWith('http') ? cat.image_url : BASE + cat.image_url} alt={cat.name} style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover' }} />
+                    ) : (
+                      <span style={{ fontSize: 22 }}>{cat.icon}</span>
+                    )}
+                  </td>
                   <td>
                     <span style={{ fontWeight: 600, color: 'var(--text)' }}>{cat.name}</span>
                   </td>
