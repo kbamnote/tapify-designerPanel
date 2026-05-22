@@ -13,8 +13,8 @@ const DashboardPage = ({ userEmail }) => {
           api('/api/admin/designs/categories.php'),
           api('/api/admin/designs/manage.php'),
         ]);
-        setCatCount(Array.isArray(catData.data) ? catData.data.length : 0);
-        setDesignCount(Array.isArray(designData.data) ? designData.data.length : 0);
+        setCatCount(Array.isArray(catData.data?.categories) ? catData.data.categories.length : 0);
+        setDesignCount(Array.isArray(designData.data?.designs) ? designData.data.designs.length : 0);
       } catch {
         setCatCount('—');
         setDesignCount('—');

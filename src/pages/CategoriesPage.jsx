@@ -168,7 +168,7 @@ const CategoriesPage = () => {
     setLoading(true);
     try {
       const data = await api('/api/admin/designs/categories.php');
-      setCategories(Array.isArray(data.data) ? data.data : []);
+      setCategories(Array.isArray(data.data?.categories) ? data.data.categories : []);
     } catch (err) {
       toast.error('Failed to load categories: ' + err.message);
     } finally {

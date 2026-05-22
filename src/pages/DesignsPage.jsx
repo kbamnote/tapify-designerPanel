@@ -263,8 +263,8 @@ const DesignsPage = () => {
         api('/api/admin/designs/manage.php'),
         api('/api/admin/designs/categories.php'),
       ]);
-      setDesigns(Array.isArray(dData.data) ? dData.data : []);
-      setCategories(Array.isArray(cData.data) ? cData.data : []);
+      setDesigns(Array.isArray(dData.data?.designs) ? dData.data.designs : []);
+      setCategories(Array.isArray(cData.data?.categories) ? cData.data.categories : []);
     } catch (err) {
       toast.error('Failed to load: ' + err.message);
     } finally {
