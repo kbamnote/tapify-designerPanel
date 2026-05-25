@@ -356,6 +356,7 @@ const CategoriesPage = () => {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const toast = useToast();
 
   const fetchCategories = useCallback(async () => {
@@ -398,6 +399,27 @@ const CategoriesPage = () => {
         </button>
       </div>
 
+      {/* ── Search bar ── */}
+      {!loading && categories.length > 0 && (
+        <div style={{ position: 'relative', marginBottom: 24, maxWidth: 360 }}>
+          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 15, pointerEvents: 'none', opacity: 0.5 }}>🔍</span>
+          <input
+            type="text"
+            className="form-input"
+            placeholder="Search categories…"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{ paddingLeft: 36, paddingRight: searchQuery ? 32 : 12 }}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--muted)', padding: 2 }}
+            >✕</button>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <div className="spinner-wrap"><div className="spinner" /><span className="spinner-text">Loading…</span></div>
       ) : categories.length === 0 ? (
@@ -406,10 +428,20 @@ const CategoriesPage = () => {
           <div className="empty-state-title">No categories yet</div>
           <div className="empty-state-desc">Click "+ Add Category" to create your first one.</div>
         </div>
-      ) : (
+      ) : (() => {
+        const q = searchQuery.trim().toLowerCase();
+        const filtered = q ? categories.filter(c => c.name.toLowerCase().includes(q)) : categories;
+        if (filtered.length === 0) return (
+          <div className="empty-state">
+            <div className="empty-state-icon">🔍</div>
+            <div className="empty-state-title">No results</div>
+            <div className="empty-state-desc">No categories match "{searchQuery}"</div>
+          </div>
+        );
+        return (
         /* ── Category cards grid ── */
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, padding: '8px 0' }}>
-          {categories.map(cat => {
+          {filtered.map(cat => {
             const imgSrc = cat.image_url
               ? (cat.image_url.startsWith('http') ? cat.image_url : BASE + cat.image_url)
               : null;
@@ -466,7 +498,8 @@ const CategoriesPage = () => {
             );
           })}
         </div>
-      )}
+        );
+      })()}
 
       {modal && (
         <CategoryModal
