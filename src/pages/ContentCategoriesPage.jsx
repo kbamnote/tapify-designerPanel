@@ -3,6 +3,8 @@ import { api } from '../api';
 import { useToast } from '../components/ToastProvider';
 import BASE from '../api';
 
+const imgUrl = (url) => (url && url.startsWith('http') ? url : `${BASE}${url}`);
+
 const ContentCategoriesPage = () => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -292,7 +294,7 @@ const ContentCategoriesPage = () => {
               {contentList.map(item => (
                 <div key={item.id} style={{ background: 'var(--surface)', padding: 16, borderRadius: 12, border: '1px solid var(--border)', position: 'relative' }}>
                   {item.type !== 'text' && item.image_url && (
-                    <img src={`${BASE}${item.image_url}`} style={{ width: '100%', borderRadius: 8, marginBottom: 12, maxHeight: 200, objectFit: 'cover' }} alt="Content" />
+                    <img src={imgUrl(item.image_url)} style={{ width: '100%', borderRadius: 8, marginBottom: 12, maxHeight: 200, objectFit: 'cover' }} alt="Content" />
                   )}
                   {item.type !== 'image' && item.text_content && (
                     <p style={{ margin: 0, color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{item.text_content}</p>
@@ -347,7 +349,7 @@ const ContentCategoriesPage = () => {
               }}
             >
               <img
-                src={`${BASE}${cat.image_url}`}
+                src={imgUrl(cat.image_url)}
                 alt={cat.name}
                 style={{ width: '100%', height: 200, objectFit: 'cover' }}
               />
@@ -432,7 +434,7 @@ const ContentCategoriesPage = () => {
                   {editCatImage ? (
                     <img src={URL.createObjectURL(editCatImage)} alt="Preview" style={{ width: 150, height: 150, objectFit: 'cover', borderRadius: 12, marginBottom: 10 }} />
                   ) : (
-                    <img src={`${BASE}${editCat.image_url}`} alt="Current" style={{ width: 150, height: 150, objectFit: 'cover', borderRadius: 12, marginBottom: 10 }} />
+                    <img src={imgUrl(editCat.image_url)} alt="Current" style={{ width: 150, height: 150, objectFit: 'cover', borderRadius: 12, marginBottom: 10 }} />
                   )}
                   <input type="file" ref={editCatFileRef} accept="image/*" style={{ display: 'none' }} onChange={e => setEditCatImage(e.target.files[0])} />
                   <br />
@@ -563,7 +565,7 @@ const ContentCategoriesPage = () => {
                     {editContentImage ? (
                       <img src={URL.createObjectURL(editContentImage)} alt="Preview" style={{ width: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 8, marginBottom: 10, background: '#f3f4f6' }} />
                     ) : editContent.image_url ? (
-                      <img src={`${BASE}${editContent.image_url}`} alt="Current" style={{ width: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 8, marginBottom: 10, background: '#f3f4f6' }} />
+                      <img src={imgUrl(editContent.image_url)} alt="Current" style={{ width: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 8, marginBottom: 10, background: '#f3f4f6' }} />
                     ) : (
                       <div
                         onClick={() => editContentFileRef.current?.click()}
