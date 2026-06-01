@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { api } from '../api';
 import { useToast } from '../components/ToastProvider';
 import BASE from '../api';
 
@@ -10,24 +9,32 @@ const ContentCategoriesPage = () => {
   const [loading, setLoading] = useState(true);
   const toast = useToast();
 
-  // Add Category Modal
+  // Add Category Modal (reused for sub-categories; addCatParentId != null means sub-category)
   const [showAddCat, setShowAddCat] = useState(false);
+  const [addCatParentId, setAddCatParentId] = useState(null);
   const [catName, setCatName] = useState('');
   const [catImage, setCatImage] = useState(null);
   const [creating, setCreating] = useState(false);
 
-  // Edit Category Modal
+  // Edit Category / Sub-category Modal
   const [editCat, setEditCat] = useState(null);
   const [editCatName, setEditCatName] = useState('');
   const [editCatImage, setEditCatImage] = useState(null);
   const [savingCat, setSavingCat] = useState(false);
 
-  // Delete Category Confirm
+  // Delete Category / Sub-category Confirm
   const [deleteCatTarget, setDeleteCatTarget] = useState(null);
   const [deletingCat, setDeletingCat] = useState(false);
 
-  // Selected Category State
+  // Navigation
   const [selectedCat, setSelectedCat] = useState(null);
+  const [selectedSubCat, setSelectedSubCat] = useState(null);
+
+  // Sub-categories
+  const [subCategories, setSubCategories] = useState([]);
+  const [loadingSubCats, setLoadingSubCats] = useState(false);
+
+  // Content
   const [contentList, setContentList] = useState([]);
   const [loadingContent, setLoadingContent] = useState(false);
 
@@ -54,6 +61,9 @@ const ContentCategoriesPage = () => {
   const contentFileRef = useRef(null);
   const editContentFileRef = useRef(null);
 
+  // The category whose content we're currently viewing
+  const activeCat = selectedSubCat ?? selectedCat;
+
   const fetchCategories = useCallback(async () => {
     setLoading(true);
     try {
@@ -71,6 +81,73 @@ const ContentCategoriesPage = () => {
 
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
 
+  const loadSubCategories = async (catId) => {
+    setLoadingSubCats(true);
+    try {
+      const res = await fetch(`${BASE}/api/categories/list.php?parent_id=${catId}`);
+      const data = await res.json();
+      if (data.success && data.data) {
+        setSubCategories(data.data.categories || []);
+      }
+    } catch (err) {
+      toast.error('Failed to load sub-categories');
+    } finally {
+      setLoadingSubCats(false);
+    }
+  };
+
+  const loadContent = async (catId) => {
+    setLoadingContent(true);
+    try {
+      const res = await fetch(`${BASE}/api/categories/content/list.php?category_id=${catId}`);
+      const data = await res.json();
+      if (data.success && data.data) {
+        setContentList(data.data.content || []);
+      }
+    } catch (err) {
+      toast.error('Failed to load content');
+    } finally {
+      setLoadingContent(false);
+    }
+  };
+
+  const openCategory = (cat) => {
+    setSelectedCat(cat);
+    setSelectedSubCat(null);
+    setSubCategories([]);
+    setContentList([]);
+    loadContent(cat.id);
+    loadSubCategories(cat.id);
+  };
+
+  const openSubCategory = (subCat) => {
+    setSelectedSubCat(subCat);
+    setContentList([]);
+    loadContent(subCat.id);
+  };
+
+  const goBackFromSubCat = () => {
+    setSelectedSubCat(null);
+    setContentList([]);
+    loadContent(selectedCat.id);
+  };
+
+  // ── Category / Sub-category CRUD ──────────────────────────────────────
+
+  const openAddCatModal = (parentId = null) => {
+    setAddCatParentId(parentId);
+    setCatName('');
+    setCatImage(null);
+    setShowAddCat(true);
+  };
+
+  const closeAddCatModal = () => {
+    setShowAddCat(false);
+    setAddCatParentId(null);
+    setCatName('');
+    setCatImage(null);
+  };
+
   const handleCreateCategory = async (e) => {
     e.preventDefault();
     if (!catName || !catImage) return toast.error('Please provide a name and an image.');
@@ -79,16 +156,19 @@ const ContentCategoriesPage = () => {
       const formData = new FormData();
       formData.append('name', catName);
       formData.append('image', catImage);
+      if (addCatParentId != null) formData.append('parent_id', addCatParentId);
       const res = await fetch(`${BASE}/api/categories/create.php`, { method: 'POST', body: formData });
       const data = await res.json();
       if (data.success) {
-        toast.success('Category created!');
-        setShowAddCat(false);
-        setCatName('');
-        setCatImage(null);
-        fetchCategories();
+        toast.success(addCatParentId ? 'Sub-category created!' : 'Category created!');
+        closeAddCatModal();
+        if (addCatParentId != null) {
+          loadSubCategories(addCatParentId);
+        } else {
+          fetchCategories();
+        }
       } else {
-        toast.error(data.message || 'Failed to create category');
+        toast.error(data.message || 'Failed to create');
       }
     } catch (err) {
       toast.error('Upload failed');
@@ -116,11 +196,22 @@ const ContentCategoriesPage = () => {
       const res = await fetch(`${BASE}/api/categories/edit.php`, { method: 'POST', body: formData });
       const data = await res.json();
       if (data.success) {
-        toast.success('Category updated!');
+        toast.success('Updated!');
         setEditCat(null);
-        fetchCategories();
+        // Refresh the right level
+        if (editCat.parent_id != null) {
+          loadSubCategories(editCat.parent_id);
+          if (selectedSubCat?.id === editCat.id) {
+            setSelectedSubCat(prev => ({ ...prev, name: editCatName }));
+          }
+        } else {
+          fetchCategories();
+          if (selectedCat?.id === editCat.id) {
+            setSelectedCat(prev => ({ ...prev, name: editCatName }));
+          }
+        }
       } else {
-        toast.error(data.message || 'Failed to update category');
+        toast.error(data.message || 'Failed to update');
       }
     } catch (err) {
       toast.error('Update failed');
@@ -137,11 +228,25 @@ const ContentCategoriesPage = () => {
       const res = await fetch(`${BASE}/api/categories/delete.php`, { method: 'POST', body: formData });
       const data = await res.json();
       if (data.success) {
-        toast.success('Category deleted!');
+        toast.success('Deleted!');
+        const isSubCat = deleteCatTarget.parent_id != null;
+        const parentId = deleteCatTarget.parent_id;
         setDeleteCatTarget(null);
-        fetchCategories();
+        if (isSubCat) {
+          if (selectedSubCat?.id === deleteCatTarget.id) {
+            setSelectedSubCat(null);
+            loadContent(selectedCat.id);
+          }
+          loadSubCategories(parentId);
+        } else {
+          if (selectedCat?.id === deleteCatTarget.id) {
+            setSelectedCat(null);
+            setSelectedSubCat(null);
+          }
+          fetchCategories();
+        }
       } else {
-        toast.error(data.message || 'Failed to delete category');
+        toast.error(data.message || 'Failed to delete');
       }
     } catch (err) {
       toast.error('Delete failed');
@@ -150,25 +255,7 @@ const ContentCategoriesPage = () => {
     }
   };
 
-  const loadContent = async (catId) => {
-    setLoadingContent(true);
-    try {
-      const res = await fetch(`${BASE}/api/categories/content/list.php?category_id=${catId}`);
-      const data = await res.json();
-      if (data.success && data.data) {
-        setContentList(data.data.content || []);
-      }
-    } catch (err) {
-      toast.error('Failed to load content');
-    } finally {
-      setLoadingContent(false);
-    }
-  };
-
-  const openCategory = (cat) => {
-    setSelectedCat(cat);
-    loadContent(cat.id);
-  };
+  // ── Content CRUD ──────────────────────────────────────────────────────
 
   const handleAddContent = async (e) => {
     e.preventDefault();
@@ -178,7 +265,7 @@ const ContentCategoriesPage = () => {
     setAddingContent(true);
     try {
       const formData = new FormData();
-      formData.append('category_id', selectedCat.id);
+      formData.append('category_id', activeCat.id);
       formData.append('type', contentType);
       if (textContent) formData.append('text_content', textContent);
       if (contentImage) formData.append('image', contentImage);
@@ -189,7 +276,7 @@ const ContentCategoriesPage = () => {
         setShowAddContent(false);
         setTextContent('');
         setContentImage(null);
-        loadContent(selectedCat.id);
+        loadContent(activeCat.id);
       } else {
         toast.error(data.message || 'Failed to add content');
       }
@@ -224,7 +311,7 @@ const ContentCategoriesPage = () => {
       if (data.success) {
         toast.success('Content updated!');
         setEditContent(null);
-        loadContent(selectedCat.id);
+        loadContent(activeCat.id);
       } else {
         toast.error(data.message || 'Failed to update content');
       }
@@ -245,7 +332,7 @@ const ContentCategoriesPage = () => {
       if (data.success) {
         toast.success('Content deleted!');
         setDeleteContentTarget(null);
-        loadContent(selectedCat.id);
+        loadContent(activeCat.id);
       } else {
         toast.error(data.message || 'Failed to delete content');
       }
@@ -256,6 +343,53 @@ const ContentCategoriesPage = () => {
     }
   };
 
+  // ── Render ────────────────────────────────────────────────────────────
+
+  const renderCategoryCard = (cat, isSubCat = false) => (
+    <div
+      key={cat.id}
+      onClick={() => isSubCat ? openSubCategory(cat) : openCategory(cat)}
+      style={{
+        width: 200,
+        background: 'var(--surface)',
+        borderRadius: 16,
+        border: '1px solid var(--border)',
+        overflow: 'hidden',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+        cursor: 'pointer',
+        position: 'relative',
+      }}
+    >
+      <img
+        src={imgUrl(cat.image_url)}
+        alt={cat.name}
+        style={{ width: '100%', height: 200, objectFit: 'cover' }}
+      />
+      <div style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 700, fontSize: 15 }}>
+        {cat.name}
+      </div>
+      <div
+        style={{ display: 'flex', gap: 6, padding: '0 12px 12px', justifyContent: 'center' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={(e) => openEditCat(e, cat)}
+          style={{ fontSize: 12, flex: 1 }}
+        >
+          ✏️ Edit
+        </button>
+        <button
+          className="btn btn-sm"
+          onClick={(e) => { e.stopPropagation(); setDeleteCatTarget(cat); }}
+          style={{ fontSize: 12, flex: 1, background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca' }}
+        >
+          🗑️ Delete
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div style={{ width: '100%' }}>
       {/* ── Header ── */}
@@ -265,64 +399,89 @@ const ContentCategoriesPage = () => {
           <div className="page-subtitle">Manage categories for Quotes, Status, Motivation, etc.</div>
         </div>
         {!selectedCat && (
-          <button className="btn btn-primary" onClick={() => setShowAddCat(true)}>
+          <button className="btn btn-primary" onClick={() => openAddCatModal(null)}>
             ＋ Add Category
           </button>
         )}
       </div>
 
-      {/* ── Main View ── */}
-      {selectedCat ? (
+      {/* ── Sub-category Detail View ── */}
+      {selectedSubCat ? (
         <div>
-          <button className="btn btn-ghost mb-4" onClick={() => setSelectedCat(null)}>← Back to Categories</button>
-
+          <button className="btn btn-ghost mb-4" onClick={goBackFromSubCat}>
+            ← Back to {selectedCat.name}
+          </button>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>{selectedCat.name} Content</h2>
+            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>{selectedSubCat.name} — Content</h2>
             <button className="btn btn-primary" onClick={() => setShowAddContent(true)}>＋ Add Content</button>
           </div>
-
           {loadingContent ? (
             <div className="spinner-wrap"><div className="spinner" /></div>
           ) : contentList.length === 0 ? (
             <div className="empty-state">
               <div className="empty-state-icon">📭</div>
               <div className="empty-state-title">No content yet</div>
-              <div className="empty-state-desc">Add some text or images to this category.</div>
+              <div className="empty-state-desc">Add some text or images to this sub-category.</div>
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
-              {contentList.map(item => (
-                <div key={item.id} style={{ background: 'var(--surface)', padding: 16, borderRadius: 12, border: '1px solid var(--border)', position: 'relative' }}>
-                  {item.type !== 'text' && item.image_url && (
-                    <img src={imgUrl(item.image_url)} style={{ width: '100%', borderRadius: 8, marginBottom: 12, maxHeight: 200, objectFit: 'cover' }} alt="Content" />
-                  )}
-                  {item.type !== 'image' && item.text_content && (
-                    <p style={{ margin: 0, color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{item.text_content}</p>
-                  )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>TYPE: {item.type.toUpperCase()}</span>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        className="btn btn-ghost btn-sm"
-                        onClick={() => openEditContent(item)}
-                        style={{ fontSize: 12, padding: '4px 10px' }}
-                      >
-                        ✏️ Edit
-                      </button>
-                      <button
-                        className="btn btn-sm"
-                        onClick={() => setDeleteContentTarget(item)}
-                        style={{ fontSize: 12, padding: '4px 10px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca' }}
-                      >
-                        🗑️ Delete
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+              {contentList.map(item => renderContentCard(item))}
             </div>
           )}
         </div>
+
+      /* ── Category Detail View ── */
+      ) : selectedCat ? (
+        <div>
+          <button className="btn btn-ghost mb-4" onClick={() => { setSelectedCat(null); setSubCategories([]); setContentList([]); }}>
+            ← Back to Categories
+          </button>
+
+          {/* Sub-categories section */}
+          <div style={{ marginBottom: 32 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>📁 Sub-categories <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--muted)' }}>(optional)</span></h3>
+              <button className="btn btn-primary btn-sm" onClick={() => openAddCatModal(selectedCat.id)}>
+                ＋ Add Sub-category
+              </button>
+            </div>
+            {loadingSubCats ? (
+              <div className="spinner-wrap" style={{ justifyContent: 'flex-start' }}><div className="spinner spinner-sm" /></div>
+            ) : subCategories.length === 0 ? (
+              <div style={{ color: 'var(--muted)', fontSize: 14, padding: '12px 0' }}>
+                No sub-categories yet. Click "+ Add Sub-category" to create one.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+                {subCategories.map(sub => renderCategoryCard(sub, true))}
+              </div>
+            )}
+          </div>
+
+          {/* Divider */}
+          <div style={{ borderTop: '1px solid var(--border)', marginBottom: 24 }} />
+
+          {/* Direct content section */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>{selectedCat.name} — Content</h2>
+            <button className="btn btn-primary" onClick={() => setShowAddContent(true)}>＋ Add Content</button>
+          </div>
+          {loadingContent ? (
+            <div className="spinner-wrap"><div className="spinner" /></div>
+          ) : contentList.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">📭</div>
+              <div className="empty-state-title">No content yet</div>
+              <div className="empty-state-desc">Add some text or images directly to this category, or use sub-categories above to organise them.</div>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
+              {contentList.map(item => renderContentCard(item))}
+            </div>
+          )}
+        </div>
+
+      /* ── Category Grid ── */
       ) : loading ? (
         <div className="spinner-wrap"><div className="spinner" /><span className="spinner-text">Loading…</span></div>
       ) : categories.length === 0 ? (
@@ -333,60 +492,17 @@ const ContentCategoriesPage = () => {
         </div>
       ) : (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, padding: '8px 0' }}>
-          {categories.map(cat => (
-            <div
-              key={cat.id}
-              onClick={() => openCategory(cat)}
-              style={{
-                width: 200,
-                background: 'var(--surface)',
-                borderRadius: 16,
-                border: '1px solid var(--border)',
-                overflow: 'hidden',
-                boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-                cursor: 'pointer',
-                position: 'relative'
-              }}
-            >
-              <img
-                src={imgUrl(cat.image_url)}
-                alt={cat.name}
-                style={{ width: '100%', height: 200, objectFit: 'cover' }}
-              />
-              <div style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 700, fontSize: 16 }}>
-                {cat.name}
-              </div>
-              <div
-                style={{ display: 'flex', gap: 6, padding: '0 12px 12px', justifyContent: 'center' }}
-                onClick={e => e.stopPropagation()}
-              >
-                <button
-                  className="btn btn-ghost btn-sm"
-                  onClick={(e) => openEditCat(e, cat)}
-                  style={{ fontSize: 12, flex: 1 }}
-                >
-                  ✏️ Edit
-                </button>
-                <button
-                  className="btn btn-sm"
-                  onClick={(e) => { e.stopPropagation(); setDeleteCatTarget(cat); }}
-                  style={{ fontSize: 12, flex: 1, background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca' }}
-                >
-                  🗑️ Delete
-                </button>
-              </div>
-            </div>
-          ))}
+          {categories.map(cat => renderCategoryCard(cat, false))}
         </div>
       )}
 
-      {/* ── Add Category Modal ── */}
+      {/* ── Add Category / Sub-category Modal ── */}
       {showAddCat && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowAddCat(false)}>
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && closeAddCatModal()}>
           <div className="modal" style={{ maxWidth: 420 }}>
             <div className="modal-header">
-              <span className="modal-title">➕ New Content Category</span>
-              <button className="modal-close" onClick={() => setShowAddCat(false)}>×</button>
+              <span className="modal-title">{addCatParentId != null ? '➕ New Sub-category' : '➕ New Content Category'}</span>
+              <button className="modal-close" onClick={closeAddCatModal}>×</button>
             </div>
             <form onSubmit={handleCreateCategory}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -405,14 +521,14 @@ const ContentCategoriesPage = () => {
                   <button type="button" className="btn btn-ghost btn-sm" onClick={() => fileInputRef.current?.click()}>Choose File</button>
                 </div>
                 <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">Category Name</label>
-                  <input type="text" className="form-input" value={catName} onChange={e => setCatName(e.target.value)} placeholder="e.g. Quotes" required />
+                  <label className="form-label">{addCatParentId != null ? 'Sub-category Name' : 'Category Name'}</label>
+                  <input type="text" className="form-input" value={catName} onChange={e => setCatName(e.target.value)} placeholder={addCatParentId != null ? 'e.g. Birthdays' : 'e.g. Quotes'} required />
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-ghost" onClick={() => setShowAddCat(false)}>Cancel</button>
+                <button type="button" className="btn btn-ghost" onClick={closeAddCatModal}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={creating}>
-                  {creating ? 'Saving...' : '💾 Save Category'}
+                  {creating ? 'Saving...' : '💾 Save'}
                 </button>
               </div>
             </form>
@@ -425,7 +541,7 @@ const ContentCategoriesPage = () => {
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setEditCat(null)}>
           <div className="modal" style={{ maxWidth: 420 }}>
             <div className="modal-header">
-              <span className="modal-title">✏️ Edit Category</span>
+              <span className="modal-title">✏️ Edit {editCat.parent_id != null ? 'Sub-category' : 'Category'}</span>
               <button className="modal-close" onClick={() => setEditCat(null)}>×</button>
             </div>
             <form onSubmit={handleEditCategory}>
@@ -441,7 +557,7 @@ const ContentCategoriesPage = () => {
                   <button type="button" className="btn btn-ghost btn-sm" onClick={() => editCatFileRef.current?.click()}>Change Image</button>
                 </div>
                 <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">Category Name</label>
+                  <label className="form-label">Name</label>
                   <input type="text" className="form-input" value={editCatName} onChange={e => setEditCatName(e.target.value)} required />
                 </div>
               </div>
@@ -461,12 +577,13 @@ const ContentCategoriesPage = () => {
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setDeleteCatTarget(null)}>
           <div className="modal" style={{ maxWidth: 380 }}>
             <div className="modal-header">
-              <span className="modal-title">🗑️ Delete Category</span>
+              <span className="modal-title">🗑️ Delete {deleteCatTarget.parent_id != null ? 'Sub-category' : 'Category'}</span>
               <button className="modal-close" onClick={() => setDeleteCatTarget(null)}>×</button>
             </div>
             <div className="modal-body">
               <p style={{ margin: 0, color: 'var(--text)' }}>
-                Are you sure you want to delete <strong>{deleteCatTarget.name}</strong>? This will also delete all content inside it.
+                Delete <strong>{deleteCatTarget.name}</strong>? This will also delete all content inside it.
+                {deleteCatTarget.parent_id == null && ' Sub-categories will also be removed.'}
               </p>
             </div>
             <div className="modal-footer">
@@ -489,7 +606,7 @@ const ContentCategoriesPage = () => {
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowAddContent(false)}>
           <div className="modal" style={{ maxWidth: 500 }}>
             <div className="modal-header">
-              <span className="modal-title">➕ Add Content to {selectedCat?.name}</span>
+              <span className="modal-title">➕ Add Content to {activeCat?.name}</span>
               <button className="modal-close" onClick={() => setShowAddContent(false)}>×</button>
             </div>
             <form onSubmit={handleAddContent}>
@@ -631,6 +748,38 @@ const ContentCategoriesPage = () => {
       )}
     </div>
   );
+
+  function renderContentCard(item) {
+    return (
+      <div key={item.id} style={{ background: 'var(--surface)', padding: 16, borderRadius: 12, border: '1px solid var(--border)', position: 'relative' }}>
+        {item.type !== 'text' && item.image_url && (
+          <img src={imgUrl(item.image_url)} style={{ width: '100%', borderRadius: 8, marginBottom: 12, maxHeight: 200, objectFit: 'cover' }} alt="Content" />
+        )}
+        {item.type !== 'image' && item.text_content && (
+          <p style={{ margin: 0, color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{item.text_content}</p>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>TYPE: {item.type.toUpperCase()}</span>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => openEditContent(item)}
+              style={{ fontSize: 12, padding: '4px 10px' }}
+            >
+              ✏️ Edit
+            </button>
+            <button
+              className="btn btn-sm"
+              onClick={() => setDeleteContentTarget(item)}
+              style={{ fontSize: 12, padding: '4px 10px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca' }}
+            >
+              🗑️ Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 };
 
 export default ContentCategoriesPage;
