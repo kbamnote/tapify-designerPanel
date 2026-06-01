@@ -9,6 +9,7 @@ const defaultForm = () => ({
   title: '',
   description: '',
   category_id: '',
+  content_category_id: '',
   tags: '',
   sort_order: 0,
   is_active: true,
@@ -17,8 +18,8 @@ const defaultForm = () => ({
 
 
 /* ── Design Modal ─────────────────────────────────────────────────────── */
-const DesignModal = ({ design, categories, onClose, onSave }) => {
-  const [form, setForm] = useState(design ? { ...design, tags: Array.isArray(design.tags) ? design.tags.join(', ') : design.tags || '' } : defaultForm());
+const DesignModal = ({ design, categories, contentCategories, onClose, onSave }) => {
+  const [form, setForm] = useState(design ? { ...design, tags: Array.isArray(design.tags) ? design.tags.join(', ') : design.tags || '', content_category_id: design.content_category_id ?? '' } : defaultForm());
   const [saving, setSaving] = useState(false);
   const toast = useToast();
 
@@ -35,6 +36,7 @@ const DesignModal = ({ design, categories, onClose, onSave }) => {
         is_active: form.is_active ? 1 : 0,
         tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
         category_id: form.category_id || null,
+        content_category_id: form.content_category_id || null,
       };
       await api('/api/admin/designs/manage.php', {
         method: 'POST',
@@ -76,7 +78,7 @@ const DesignModal = ({ design, categories, onClose, onSave }) => {
                   onChange={e => set('title', e.target.value)} placeholder="e.g. Happy Diwali Card" required />
               </div>
               <div className="form-group">
-                <label className="form-label" htmlFor="des-category">Category</label>
+                <label className="form-label" htmlFor="des-category">Design Category</label>
                 <select id="des-category" className="form-select" value={form.category_id}
                   onChange={e => set('category_id', e.target.value)}>
                   <option value="">— No Category —</option>
@@ -85,6 +87,18 @@ const DesignModal = ({ design, categories, onClose, onSave }) => {
                   ))}
                 </select>
               </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="des-content-category">Content Category</label>
+              <select id="des-content-category" className="form-select" value={form.content_category_id}
+                onChange={e => set('content_category_id', e.target.value)}>
+                <option value="">— None —</option>
+                {contentCategories.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <span className="form-hint">When set, this design also appears under that content category tab in the app (e.g. Important Dates)</span>
             </div>
 
             <div className="form-group">
@@ -174,6 +188,7 @@ const DesignCard = ({ design, categories, onEdit, onDelete }) => {
 const DesignsPage = () => {
   const [designs, setDesigns] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [contentCategories, setContentCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [search, setSearch] = useState('');
@@ -184,12 +199,15 @@ const DesignsPage = () => {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [dData, cData] = await Promise.all([
+      const [dData, cData, ccRes] = await Promise.all([
         api('/api/admin/designs/manage.php'),
         api('/api/admin/designs/categories.php'),
+        fetch(BASE + '/api/categories/list.php'),
       ]);
       setDesigns(Array.isArray(dData.data?.designs) ? dData.data.designs : []);
       setCategories(Array.isArray(cData.data?.categories) ? cData.data.categories : []);
+      const ccJson = await ccRes.json();
+      setContentCategories(Array.isArray(ccJson.data?.categories) ? ccJson.data.categories : []);
     } catch (err) {
       toast.error('Failed to load: ' + err.message);
     } finally {
@@ -301,6 +319,7 @@ const DesignsPage = () => {
         <DesignModal
           design={modal === 'add' ? null : modal}
           categories={categories}
+          contentCategories={contentCategories}
           onClose={() => setModal(null)}
           onSave={handleSave}
         />
