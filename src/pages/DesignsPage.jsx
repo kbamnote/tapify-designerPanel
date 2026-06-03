@@ -19,9 +19,19 @@ const defaultForm = () => ({
 
 /* ── Design Modal ─────────────────────────────────────────────────────── */
 const DesignModal = ({ design, categories, contentCategories, onClose, onSave }) => {
-  const [form, setForm] = useState(design ? { ...design, tags: Array.isArray(design.tags) ? design.tags.join(', ') : design.tags || '', content_category_id: design.content_category_id ?? '' } : defaultForm());
+  const initialContentCat = design ? contentCategories.find(c => String(c.id) === String(design.content_category_id)) : null;
+  const initParent = initialContentCat?.parent_id != null ? String(initialContentCat.parent_id) : (initialContentCat ? String(initialContentCat.id) : '');
+  const initSub = initialContentCat?.parent_id != null ? String(initialContentCat.id) : '';
+
+  const [form, setForm] = useState(design ? { ...design, tags: Array.isArray(design.tags) ? design.tags.join(', ') : design.tags || '' } : defaultForm());
+  const [parentContentCatId, setParentContentCatId] = useState(initParent);
+  const [subContentCatId, setSubContentCatId] = useState(initSub);
+  
   const [saving, setSaving] = useState(false);
   const toast = useToast();
+
+  const allParents = contentCategories.filter(c => c.parent_id == null);
+  const getSubs = (parentId) => contentCategories.filter(c => String(c.parent_id) === String(parentId));
 
   const set = (key, val) => setForm(prev => ({ ...prev, [key]: val }));
 
@@ -36,7 +46,7 @@ const DesignModal = ({ design, categories, contentCategories, onClose, onSave })
         is_active: form.is_active ? 1 : 0,
         tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
         category_id: form.category_id || null,
-        content_category_id: form.content_category_id || null,
+        content_category_id: subContentCatId || parentContentCatId || null,
       };
       await api('/api/admin/designs/manage.php', {
         method: 'POST',
@@ -91,15 +101,32 @@ const DesignModal = ({ design, categories, contentCategories, onClose, onSave })
 
             <div className="form-group">
               <label className="form-label" htmlFor="des-content-category">Content Category</label>
-              <select id="des-content-category" className="form-select" value={form.content_category_id}
-                onChange={e => set('content_category_id', e.target.value)}>
+              <select id="des-content-category" className="form-select" value={parentContentCatId}
+                onChange={e => {
+                  setParentContentCatId(e.target.value);
+                  setSubContentCatId('');
+                }}>
                 <option value="">— None —</option>
-                {contentCategories.map(c => (
+                {allParents.map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
               <span className="form-hint">When set, this design also appears under that content category tab in the app (e.g. Important Dates)</span>
             </div>
+
+            {parentContentCatId && getSubs(parentContentCatId).length > 0 && (
+              <div className="form-group">
+                <label className="form-label" htmlFor="des-content-subcategory">Content Sub Category</label>
+                <select id="des-content-subcategory" className="form-select" value={subContentCatId}
+                  onChange={e => setSubContentCatId(e.target.value)}>
+                  <option value="">— Entire Category —</option>
+                  {getSubs(parentContentCatId).map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <span className="form-hint">Select a sub-category if you only want it to appear there.</span>
+              </div>
+            )}
 
             <div className="form-group">
               <label className="form-label" htmlFor="des-desc">Description</label>
@@ -202,7 +229,7 @@ const DesignsPage = () => {
       const [dData, cData, ccRes] = await Promise.all([
         api('/api/admin/designs/manage.php'),
         api('/api/admin/designs/categories.php'),
-        fetch(BASE + '/api/categories/list.php'),
+        fetch(BASE + '/api/categories/list.php?all=1'),
       ]);
       setDesigns(Array.isArray(dData.data?.designs) ? dData.data.designs : []);
       setCategories(Array.isArray(cData.data?.categories) ? cData.data.categories : []);
