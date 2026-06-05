@@ -76,7 +76,7 @@ const App = () => {
   const handleLogout = async () => {
     try {
       // Attempt server-side logout (ignore errors)
-      await fetch('https://tapify-backend-production.up.railway.app/api/logout.php', {
+      await fetch('https://app.tapify.co.in/api/logout.php', {
         method: 'POST',
         credentials: 'include',
       });
